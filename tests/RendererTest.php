@@ -383,4 +383,14 @@ final class RendererTest extends TestCase
         self::assertSame(200, $psr7Response->getStatusCode());
         self::assertSame('raw content', (string) $psr7Response->getBody());
     }
+
+    public function testStandardBadFormatThrowsException(): void
+    {
+        $container = $this->createContainer();
+        $voilabResponse = $container->response();
+        $voilabResponse->setContent(['not' => 'a string']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $voilabResponse->getRenderer('application/xml')->render(new Response());
+    }
 }
