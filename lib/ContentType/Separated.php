@@ -24,7 +24,7 @@ class Separated implements ContentType
             /** @var list<array<mixed>> $content */
             $formatted = array_map(fn (array $line): string => implode($this->separator, $line), $content);
 
-            if ($renderer->getOption('headings', false)) {
+            if ($renderer->getOption('headings', false) && [] !== $content) {
                 /** @var array<mixed> $first */
                 $first = array_shift($content);
                 $heading = implode($this->separator, array_keys($first));

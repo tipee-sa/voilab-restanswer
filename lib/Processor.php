@@ -95,7 +95,7 @@ class Processor
                     $mapped[] = $this->recursiveMap($value, $fieldMapping);
                 }
             }
-        } elseif ($content) {
+        } elseif (null !== $content) {
             foreach ($fieldMapping as $key => $map) {
                 if (is_string($map)) {
                     $mapped[$key] = $this->getKeyContent($content, $map);

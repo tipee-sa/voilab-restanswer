@@ -12,7 +12,7 @@ class Json implements ContentType
 {
     public function render(mixed $content, Renderer $renderer, bool $newLineEOF = false): ?string
     {
-        if ($content) {
+        if (null !== $content) {
             return json_encode($content, JSON_THROW_ON_ERROR);
         }
 
