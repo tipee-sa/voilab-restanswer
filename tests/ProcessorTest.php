@@ -270,27 +270,26 @@ final class ProcessorTest extends TestCase
         self::assertSame('1', $psr7Response->getHeaderLine('X-Page'));
     }
 
-    public function testMappingIsResetBetweenProcessCalls(): void
+    public function testProcessorIsFactoryAndMappingDoesNotLeak(): void
     {
         $container = $this->createContainer();
-        $processor = $container->processor();
 
         // First call with mapping
         $answer1 = $this->createAnswer();
         $answer1->setBody(['id' => 1, 'name' => 'Alice', 'email' => 'alice@example.com']);
 
-        $psr7Response1 = $processor->map([
+        $psr7Response1 = $container->processor()->map([
             'id' => 'id',
         ])->process($answer1, new Response());
         self::assertSame('{"id":1}', (string) $psr7Response1->getBody());
 
-        // Second call without map() — mapping from first call still applies (stale mapping)
+        // Second call without map() — fresh processor, no stale mapping
         $answer2 = $this->createAnswer();
         $answer2->setBody(['id' => 2, 'name' => 'Bob', 'email' => 'bob@example.com']);
 
-        $psr7Response2 = $processor->process($answer2, new Response());
-        // Stale mapping is still active — only 'id' key is returned
-        self::assertSame('{"id":2}', (string) $psr7Response2->getBody());
+        $psr7Response2 = $container->processor()->process($answer2, new Response());
+        // Fresh processor has no mapping — full body is returned
+        self::assertSame('{"id":2,"name":"Bob","email":"bob@example.com"}', (string) $psr7Response2->getBody());
     }
 
     public function testDotNotationWithObjectPropertiesMultiLevel(): void

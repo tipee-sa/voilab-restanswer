@@ -39,7 +39,7 @@ class Container extends \Pimple\Container
 
         $this['response'] = $this->factory(fn (): Response => new Response($this));
         $this['renderer'] = $this->factory(fn (): Renderer => new Renderer($this));
-        $this['processor'] = fn (): Processor => new Processor($this);
+        $this['processor'] = $this->factory(fn (): Processor => new Processor($this));
 
         $this['defaultContentType'] = fn (): Standard => new Standard();
         $this['jsonContentType'] = fn (): Json => new Json();

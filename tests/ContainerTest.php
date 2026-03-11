@@ -27,13 +27,13 @@ final class ContainerTest extends TestCase
         self::assertNotSame($renderer1, $renderer2);
     }
 
-    public function testProcessorIsShared(): void
+    public function testProcessorIsFactory(): void
     {
         $container = new Container();
         $processor1 = $container->processor();
         $processor2 = $container->processor();
 
-        self::assertSame($processor1, $processor2);
+        self::assertNotSame($processor1, $processor2);
     }
 
     public function testDefaultConfigKeys(): void
