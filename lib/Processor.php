@@ -1,89 +1,64 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Voilab\Restanswer;
 
+use ArrayAccess;
+use Psr\Http\Message\ResponseInterface;
 use Voilab\Serviceanswer\Interfaces\Returnable;
+use function is_array;
+use function is_callable;
+use function is_object;
+use function is_string;
 
-class Processor {
+class Processor
+{
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $mapping = null;
 
-    /** @var Container */
-    public $container;
+    public function __construct(
+        private readonly Container $container,
+    ) {}
 
     /**
-     * Mapping between the expected return and the provided Returnable
-     * @var array<string, mixed>
+     * Process a service return and render as a PSR-7 response.
      */
-    public $mapping;
-
-    /**
-     * Is the provided Returnable a collection
-     * @var boolean
-     */
-    public $isCollection;
-
-
-
-    /** ================== Constructor ========================================== */
-
-    public function __construct(Container $c) {
-        $this->container = $c;
-    }
-
-    /** ================ / Constructors ========================================= */
-
-
-
-
-
-
-
-    /** ================== Public methods ======================================= */
-
-    /**
-     * Process un retour de service et appel le moteur de rendu REST.
-     *
-     * @param Returnable $returnable Objet retourné par un service
-     * @param string $format Un format de retour HTTP qui supplantera celui défini par défaut.
-     * @param bool $interrupt Si vrai, interrompra le déroulement du workflow REST pour renvoyer directement la réponse
-     * @return bool
-     */
-    public function process(Returnable $returnable, $format = null, $interrupt = false) {
+    public function process(Returnable $returnable, ResponseInterface $response, ?string $format = null): ResponseInterface
+    {
         if (!$returnable->isSuccess()) {
-            $http_status = 400;
-            if (isset($this->container['config']['codeTranslator'][$returnable->getErrorCode()])) {
-                $http_status = $this->container['config']['codeTranslator'][$returnable->getErrorCode()];
-            }
+            /** @var array<string|int, int> $codeTranslator */
+            $codeTranslator = $this->container->config()['codeTranslator'];
+            $httpStatus = $codeTranslator[$returnable->getErrorCode()] ?? 400;
 
-            $this->container['response']
-                ->setInterrupt($interrupt)
-                ->setHttpStatus($http_status)
+            return $this->container->response()
+                ->setHttpStatus($httpStatus)
                 ->setContent($returnable->getMessage())
                 ->getRenderer($format)
-                ->render();
-
-            return true;
+                ->render($response);
         }
 
-        $response = $this->getProcessedResponse($returnable);
-        $response->getRenderer($format)->render();
-        return true;
+        $voilabResponse = $this->getProcessedResponse($returnable);
+
+        return $voilabResponse->getRenderer($format)->render($response);
     }
 
-    /**
-     * Récupération d'un objet Response avec le contenu mappé
-     *
-     * @param Returnable $returnable
-     * @return Response
-     */
-    public function getProcessedResponse(Returnable $returnable) {
+    public function getProcessedResponse(Returnable $returnable): Response
+    {
         $content = $returnable->getBody();
 
-        // s'il y a un mapping à effectuer, on l'effectue
-        if ($this->mapping) {
+        if (null !== $this->mapping) {
             $content = $this->recursiveMap($content, $this->mapping);
         }
 
-        $response = $this->container['response']
-            ->setHeaders($returnable->getMetadatas());
+        /** @var array<string, string> $metadatas */
+        $metadatas = $returnable->getMetadatas();
+        $response = $this->container->response()
+            ->setHeaders($metadatas);
+
+        /** @phpstan-ignore method.notFound (isEmpty() is provided by the Base trait, not declared in the Returnable interface) */
         if (!$returnable->isEmpty()) {
             $response->setContent($content);
         } else {
@@ -94,129 +69,96 @@ class Processor {
     }
 
     /**
-     *  Configuration du map des données.
-     *
-     *  [
-     *      'isCollection' => true,         // Le contenu est une collection d'objets, le mapping est appliqué à chacun.
-     *      'mapping' => [
-     *          'id' => 'id',               // Propriété 'id' d'un objet ou tableau
-     *          'name' => 'getName',        // Appel de la fonction getName() sur l'objet
-     *          'Owner' => [                // Nouveau mapping simple. L'objet est traité comme unique (Pas collection)
-     *              'id' => 'id'
-     *          ],
-     *          'Products' => [             // Nouveau mapping complet. Permet de mapper une sous collection
-     *              'isCollection' => true,
-     *              'accessor' => 'getProducts', // Chemin ou fonction pour accèder à 'Products'
-     *              'mapping' => [
-     *                  'id' => 'id',
-     *                  'label' => 'label'
-     *              ]
-     *          ],
-     *          'User' => [
-     *              '__name__' => 'Customer', // technique pour changer la clé sur une relation
-     *              'id' => 'id'
-     *          ]
-     *      ]
-     *  ]
-     *
-     *  @param  array<string, mixed>  $mapping
-     *
-     *  @return Processor
+     * @param array<string, mixed> $mapping
      */
-    public function map(array $mapping) {
+    public function map(array $mapping): self
+    {
         $this->mapping = $mapping;
+
         return $this;
     }
 
-    /** ================ / Public methods ======================================= */
-
     /**
-     *  Map recrusif des données.
-     *
-     *  @see Processor::map()
-     *
-     *  @param  mixed  $content Objet de données
-     *  @param  array<string, mixed>  $mapping Configuration du mapping
-     *
-     *  @return mixed[]|null          Données mapées
+     * @param array<string, mixed> $mapping
+     * @return list<mixed>|array<string, mixed>|null
      */
-    private function recursiveMap($content, array $mapping) {
-        $isCollection = isset($mapping['isCollection']) ? $mapping['isCollection'] : false;
-        $mapping = isset($mapping['mapping']) ? $mapping['mapping'] : $mapping;
-        $mapped = array();
+    private function recursiveMap(mixed $content, array $mapping): ?array
+    {
+        /** @var bool $isCollection */
+        $isCollection = $mapping['isCollection'] ?? false;
+
+        /** @var array<string, mixed> $fieldMapping */
+        $fieldMapping = $mapping['mapping'] ?? $mapping;
+        $mapped = [];
 
         if ($isCollection) {
-            // Mapping d'une collection, traite les éléments un par un.
-            if (is_array($content) || $content instanceof \Traversable) {
-                foreach ( $content as &$value ) {
-                    $mapped[] = $this->recursiveMap( $value, $mapping );
+            if (is_iterable($content)) {
+                foreach ($content as $value) {
+                    $mapped[] = $this->recursiveMap($value, $fieldMapping);
                 }
             }
         } elseif ($content) {
-            // Mapping d'un élément unique.
-            foreach ($mapping as $key => $map) {
+            foreach ($fieldMapping as $key => $map) {
                 if (is_string($map)) {
-                    // Map simple, valeur directe ou fonction. Surchargé par l'accessor si défini.
                     $mapped[$key] = $this->getKeyContent($content, $map);
-                } else if (is_callable($map)) {
-                    // Fonction de map avancé. Appel avec l'objet en paramètre et attribue le retour.
+                } elseif (is_callable($map)) {
                     $mapped[$key] = $map($content);
-                } else if (is_array($map)) {
-                    // Nouveau mapping, récurssion.
-                    $accessor = isset($map['accessor']) ? $map['accessor'] : $key;
+                } elseif (is_array($map)) {
+                    /** @var string $accessor */
+                    $accessor = $map['accessor'] ?? $key;
                     if (isset($map['__name__']) && $map['__name__']) {
+                        /** @var string $key */
                         $key = $map['__name__'];
                     }
 
+                    /** @var array<string, mixed> $subMapping */
+                    $subMapping = $map;
                     $mapped[$key] = $this->recursiveMap(
                         $this->getKeyContent($content, $accessor),
-                        $map
+                        $subMapping,
                     );
                 }
             }
         } else {
-            $mapped = null;
+            return null;
         }
 
         return $mapped;
     }
 
-    /**
-     *  Pour un objet donné, va lire la propriété défini par le chemin d'accès.
-     *  Types de valeurs pour accessor:
-     *  - Index de tableau
-     *  - Nom de propriété d'un objet
-     *  - Méthode à appeler sur un objet
-     *  - ??? (Truc avec processorMapping dans la config)
-     *
-     *  @param  mixed  $object   Objet source des données
-     *  @param  String $accessor Spécification de l'accesseur. Voir détails.
-     *
-     *  @return mixed             Valeur ou null
-     */
-    private function getKeyContent($object, $accessor) {
-        $successive_acessors = explode('.', $accessor);
-        foreach ($successive_acessors as $accessor) {
+    private function getKeyContent(mixed $object, string $accessor): mixed
+    {
+        $parts = explode('.', $accessor);
+        foreach ($parts as $part) {
             if (is_array($object)) {
-                // Index de tableau
-                if (isset($object[$accessor])) {
-                    $object = $object[$accessor];
+                if (isset($object[$part])) {
+                    $object = $object[$part];
                 } else {
                     return null;
                 }
-            } elseif (isset($object->$accessor)) {
-                // Nom de propriété d'un objet
-                $object = $object->$accessor;
-            } elseif (null !== $object && method_exists($object, $accessor)) {
-                // Méthode à appeler sur un objet
-                $object = $object->$accessor();
-            } elseif ($this->container['config']['processorMapping']['propertyArrayAccessCheck'] && isset($object[$accessor])) {
-                // ???
-                $object = $object[$accessor];
-            }else {
+            } elseif (is_object($object) && isset($object->{$part})) {
+                $object = $object->{$part};
+            } elseif (is_object($object) && method_exists($object, $part)) {
+                $object = $object->{$part}();
+            } elseif (
+                $this->isPropertyArrayAccessCheckEnabled()
+                && $object instanceof ArrayAccess
+                && isset($object[$part])
+            ) {
+                $object = $object[$part];
+            } else {
                 return null;
             }
         }
+
         return $object;
+    }
+
+    private function isPropertyArrayAccessCheckEnabled(): bool
+    {
+        /** @var array{propertyArrayAccessCheck?: bool} $processorMapping */
+        $processorMapping = $this->container->config()['processorMapping'] ?? [];
+
+        return $processorMapping['propertyArrayAccessCheck'] ?? false;
     }
 }

@@ -1,7 +1,0 @@
-parameters:
-	ignoreErrors:
-		-
-			message: "#^Call to an undefined method Voilab\\\\Serviceanswer\\\\Interfaces\\\\Returnable\\:\\:isEmpty\\(\\)\\.$#"
-			count: 1
-			path: lib/Processor.php
-

@@ -1,28 +1,14 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer\Interfaces;
 
 use Voilab\Restanswer\Renderer;
 
-/**
- * Interface ContentType
- * @package Voilab\Restanswer\Interfaces
- */
 interface ContentType
 {
+    public function render(mixed $content, Renderer $renderer, bool $newLineEOF = false): ?string;
 
-    /**
-     * @param mixed $content
-     * @param Renderer $renderer
-     * @param bool $newLineEOF
-     * @return mixed
-     */
-    public function render($content, Renderer $renderer, $newLineEOF = false);
-
-    /**
-     * @param mixed $content
-     * @param Renderer $renderer
-     * @return mixed
-     */
-    public function renderError($content, Renderer $renderer);
+    public function renderError(mixed $content, Renderer $renderer): ?string;
 }

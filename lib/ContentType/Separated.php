@@ -1,37 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer\ContentType;
 
+use InvalidArgumentException;
 use Voilab\Restanswer\Interfaces\ContentType;
 use Voilab\Restanswer\Renderer;
+use function is_array;
+use function is_string;
 
-/**
- * Class Separated
- * @package Voilab\Restanswer\ContentType
- */
 class Separated implements ContentType
 {
+    protected string $separator = ',';
 
-    /**
-     * @var string
-     */
-    public $separator;
-
-    public function render($content, Renderer $renderer, $newLineEOF = false)
+    public function render(mixed $content, Renderer $renderer, bool $newLineEOF = false): ?string
     {
         if (is_string($content)) {
             return $content;
-        } elseif (is_array($content)) {
-            $formatted = array_map(function ($line) {
-                return implode($this->separator, $line);
-            }, $content);
+        }
+
+        if (is_array($content)) {
+            /** @var list<array<mixed>> $content */
+            $formatted = array_map(fn (array $line): string => implode($this->separator, $line), $content);
 
             if ($renderer->getOption('headings', false)) {
-                $heading = implode($this->separator, array_keys(array_shift($content)));
+                /** @var array<mixed> $first */
+                $first = array_shift($content);
+                $heading = implode($this->separator, array_keys($first));
                 array_unshift($formatted, $heading);
             }
-            $linebreak = $renderer->getOption('linebreak', "\n");
 
+            /** @var string $linebreak */
+            $linebreak = $renderer->getOption('linebreak', "\n");
             $plainText = implode($linebreak, $formatted);
 
             if ($newLineEOF) {
@@ -39,12 +40,12 @@ class Separated implements ContentType
             }
 
             return $plainText;
-        } else {
-            return 'Bad format according to the required response Content-Type.';
         }
+
+        throw new InvalidArgumentException('Bad format according to the required response Content-Type.');
     }
 
-    public function renderError($content, Renderer $renderer)
+    public function renderError(mixed $content, Renderer $renderer): ?string
     {
         return $this->render($content, $renderer);
     }

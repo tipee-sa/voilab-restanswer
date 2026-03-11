@@ -1,200 +1,113 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer;
 
-/**
- * Class Response
- * @package Voilab\Restanswer
- */
+use Psr\Http\Message\ResponseInterface;
+
 class Response
 {
-    /** @var string */
-    public $encoding = 'utf-8';
-
-    /** @var int */
-    public $httpStatus = 200;
-
-    /** @var mixed */
-    public $content = null;
-
-    /** @var bool */
-    public $interrupt = false;
-
-    /** @var array<string, mixed> */
-    public $headers = array();
-
-    /** @var bool */
-    private $newLineEOF = false;
+    private string $encoding = 'utf-8';
+    private int $httpStatus = 200;
+    private mixed $content = null;
+    private bool $newLineEOF = false;
 
     /**
-     * @var Container $container
+     * @var array<string, string>
      */
-    public $container;
+    private array $headers = [];
+
+    public function __construct(
+        private readonly Container $container,
+    ) {}
 
     /**
-     * Response constructor.
-     * @param Container $c
+     * Fast error helper. Returns a PSR-7 response with the given status and content.
      */
-    public function __construct(Container $c)
-    {
-        $this->container = $c;
-    }
-
-    /** ================== Public methods ======================================= */
-
-    /**
-     * Fast error helper.
-     * Same as doing:
-     * $response
-     *     ->setHttpStatus($httpStatus)
-     *     ->setContent($content)
-     *     ->getRenderer()
-     *     ->render();
-     *
-     * @param  integer $httpStatus Status HTTP
-     * @param  string  $content    Response content
-     * @return Renderer
-     */
-    public function error($httpStatus, $content)
+    public function error(int $httpStatus, string $content, ResponseInterface $response): ResponseInterface
     {
         return $this
             ->setHttpStatus($httpStatus)
             ->setContent($content)
             ->getRenderer()
-            ->render();
+            ->render($response);
     }
 
-    /**
-     * @param string $contentType
-     * @return Renderer
-     */
-    public function getRenderer($contentType = null)
+    public function getRenderer(?string $contentType = null): Renderer
     {
-        $renderer = $this->container[$this->container['config']['engine'] . 'Renderer'];
+        $renderer = $this->container->renderer();
         $renderer->setResponse($this);
-        if ($contentType) {
+        if (null !== $contentType) {
             $renderer->setContentType($contentType);
         }
+
         return $renderer;
     }
 
-    /** ================ / Public methods ======================================= */
-
-
-
-
-
-
-
-    /** ================ Accessors ============================================== */
-
-    /**
-     * @return int
-     */
-    public function getHttpStatus()
+    public function getHttpStatus(): int
     {
         return $this->httpStatus;
     }
 
-    /**
-     * @param int $status
-     * @return self
-     */
-    public function setHttpStatus($status)
+    public function setHttpStatus(int $status): self
     {
         $this->httpStatus = $status;
+
         return $this;
     }
 
-    /**
-     * @param bool $value
-     * @return self
-     */
-    public function setInterrupt($value)
-    {
-        $this->interrupt = $value;
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isInterrupt()
-    {
-        return $this->interrupt;
-    }
-
-    /**
-     * @return null
-     */
-    public function getContent()
+    public function getContent(): mixed
     {
         return $this->content;
     }
 
-    /**
-     * @param mixed $content
-     * @return self
-     */
-    public function setContent($content)
+    public function setContent(mixed $content): self
     {
         $this->content = $content;
+
         return $this;
     }
 
-    /**
-     * @return string
-     */
-    public function getEncoding()
+    public function getEncoding(): string
     {
         return $this->encoding;
     }
 
-    /**
-     * @param string $encoding
-     * @return self
-     */
-    public function setEncoding($encoding)
+    public function setEncoding(string $encoding): self
     {
         $this->encoding = $encoding;
+
         return $this;
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array<string, string>
      */
-    public function getHeaders()
+    public function getHeaders(): array
     {
         return $this->headers;
     }
 
     /**
-     * @param array<string, mixed> $headers
-     * @return self
+     * @param array<string, string> $headers
      */
-    public function setHeaders($headers)
+    public function setHeaders(array $headers): self
     {
         $this->headers = $headers;
+
         return $this;
     }
 
-    /**
-     * @return bool
-     */
-    public function isNewLineEOF()
+    public function isNewLineEOF(): bool
     {
         return $this->newLineEOF;
     }
 
-    /**
-     * @param bool $newLineEOF
-     * @return Response
-     */
-    public function setNewLineEOF($newLineEOF)
+    public function setNewLineEOF(bool $newLineEOF): self
     {
         $this->newLineEOF = $newLineEOF;
+
         return $this;
     }
-
-    /** ============== / Accessors ============================================== */
 }

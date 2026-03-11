@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer;
 
 use Voilab\Restanswer\ContentType\Csv;
@@ -7,64 +9,75 @@ use Voilab\Restanswer\ContentType\Json;
 use Voilab\Restanswer\ContentType\Standard;
 use Voilab\Restanswer\ContentType\Tab;
 use Voilab\Restanswer\ContentType\Text;
-use Voilab\Restanswer\Renderer\Slim;
+use Voilab\Restanswer\Interfaces\ContentType;
 
-class Container extends \Pimple\Container {
-
+class Container extends \Pimple\Container
+{
     /**
-     * @param mixed[] $config Global configuration
-     * @param mixed $engine Engine used for the Rest API
+     * @param array<string, mixed> $config
      */
-    public function __construct(array $config, $engine)
+    public function __construct(array $config = [])
     {
         parent::__construct();
 
-        $this['config'] = array_merge(array(
-            'engine' => 'slim',
+        $this['config'] = array_merge([
             'content-type' => 'application/json',
-            'mimetypes' => array(
+            'mimetypes' => [
                 'application/json' => 'json',
                 'json' => 'json',
                 'text/html' => 'string',
                 'text/csv' => 'csv',
                 'text/tab-separated-values' => 'tab',
                 'default' => 'default',
-                'standard' => 'default'
-            ),
-            'codeTranslator' => array(),
-            'processorMapping' => array(
-                'propertyArrayAccessCheck' => true
-            )
-        ), $config);
+                'standard' => 'default',
+            ],
+            'codeTranslator' => [],
+            'processorMapping' => [
+                'propertyArrayAccessCheck' => true,
+            ],
+        ], $config);
 
-        $this['engine'] = $engine;
+        $this['response'] = $this->factory(fn (): Response => new Response($this));
+        $this['renderer'] = $this->factory(fn (): Renderer => new Renderer($this));
+        $this['processor'] = fn (): Processor => new Processor($this);
 
-        $this['response'] = $this->factory(function ($c) {
-            return new Response($c);
-        });
+        $this['defaultContentType'] = fn (): Standard => new Standard();
+        $this['jsonContentType'] = fn (): Json => new Json();
+        $this['csvContentType'] = fn (): Csv => new Csv();
+        $this['tabContentType'] = fn (): Tab => new Tab();
+        $this['stringContentType'] = fn (): Text => new Text();
+    }
 
-        $this['slimRenderer'] = $this->factory(function ($c) {
-            return new Slim($c);
-        });
+    /**
+     * @return array<string, mixed>
+     */
+    public function config(): array
+    {
+        /** @var array<string, mixed> */
+        return $this['config'];
+    }
 
-        $this['defaultContentType'] = function ($c) {
-            return new Standard();
-        };
-        $this['jsonContentType'] = function ($c) {
-            return new Json();
-        };
-        $this['csvContentType'] = function ($c) {
-            return new Csv();
-        };
-        $this['tabContentType'] = function ($c) {
-            return new Tab();
-        };
-        $this['stringContentType'] = function ($c) {
-            return new Text();
-        };
+    public function response(): Response
+    {
+        /** @var Response */
+        return $this['response'];
+    }
 
-        $this['processor'] = function ($c) {
-            return new Processor($c);
-        };
+    public function renderer(): Renderer
+    {
+        /** @var Renderer */
+        return $this['renderer'];
+    }
+
+    public function processor(): Processor
+    {
+        /** @var Processor */
+        return $this['processor'];
+    }
+
+    public function contentTypeAdapter(string $name): ContentType
+    {
+        /** @var ContentType */
+        return $this[$name];
     }
 }

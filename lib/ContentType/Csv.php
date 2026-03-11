@@ -1,12 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer\ContentType;
 
-/**
- * Class Csv
- * @package Voilab\Restanswer\ContentType
- */
 class Csv extends Separated
 {
-    public $separator = ';';
+    protected string $separator = ';';
 }

@@ -1,27 +1,26 @@
 <?php
+
+declare(strict_types=1);
+
 namespace Voilab\Restanswer\ContentType;
 
 use Voilab\Restanswer\Interfaces\ContentType;
 use Voilab\Restanswer\Renderer;
+use const JSON_THROW_ON_ERROR;
 
-/**
- * Class Json
- * @package Voilab\Restanswer\ContentType
- */
 class Json implements ContentType
 {
-    public function render($content, Renderer $renderer, $newLineEOF = false)
+    public function render(mixed $content, Renderer $renderer, bool $newLineEOF = false): ?string
     {
         if ($content) {
-            return json_encode($content);
+            return json_encode($content, JSON_THROW_ON_ERROR);
         }
+
         return null;
     }
 
-    public function renderError($message, Renderer $renderer)
+    public function renderError(mixed $message, Renderer $renderer): ?string
     {
-        return json_encode(array(
-            'message' => $message
-        ));
+        return json_encode(['message' => $message], JSON_THROW_ON_ERROR);
     }
 }

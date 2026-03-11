@@ -1,254 +1,147 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Voilab\Restanswer;
 
-/**
- * Class Renderer
- * @package Voilab\Restanswer
- */
-abstract class Renderer
+use Psr\Http\Message\ResponseInterface;
+
+class Renderer
 {
     /**
-     * @var Response
+     * @phpstan-ignore property.uninitialized (set via setResponse() before use)
      */
-    public $response;
-
-    /** @var string */
-    public $contentType;
-
-    /** @var mixed */
-    private $content;
-
-    /** @var int */
-    public $status = 200;
-
-    /** @var mixed[] */
-    public $options = [];
-
-    /** @var Container */
-    public $container;
-
-
+    private Response $response;
+    private string $contentType;
+    private ?string $content = null;
+    private int $status = 200;
 
     /**
-     * @param bool $interrupt
-     *
-     * @return void
+     * @var array<string, mixed>
      */
-    abstract public function engineRender($interrupt = false);
+    private array $options = [];
 
-    /**
-     * @param string $key
-     * @param mixed $value
-     *
-     * @return void
-     */
-    abstract public function setHeader($key, $value);
-
-
-
-
-/** ================== Constructor ========================================== */
-
-    /**
-     * Renderer constructor.
-     * @param Container $c
-     */
-    public function __construct(Container $c)
-    {
-        $this->container = $c;
-        $this->contentType = $c['config']['content-type'];
+    public function __construct(
+        private readonly Container $container,
+    ) {
+        /** @var string $defaultContentType */
+        $defaultContentType = $this->container->config()['content-type'];
+        $this->contentType = $defaultContentType;
     }
 
-/** ================ / Constructors ========================================= */
-
-
-
-
-
-
-
-
-/** ================== Public methods ======================================= */
-
     /**
-     * @return self
+     * Render the response content and build a PSR-7 response.
      */
-    public function prepare()
+    public function render(ResponseInterface $response): ResponseInterface
     {
         $this->prepareContent();
-        $this->prepareHeaders();
-        return $this;
+
+        return $this->buildResponse($response);
     }
 
     /**
-     * @param string $from
-     * @param string $to
-     * @return self
+     * Apply prepared content + headers to a PSR-7 response.
+     * Separate from render() for the convert() use case (prepare -> convert -> buildResponse).
      */
-    public function convert($from, $to)
+    public function buildResponse(ResponseInterface $response): ResponseInterface
     {
-        $content = $this->content;
-        $content = iconv($from, $to, $content);
-        $this->content = $content;
-        return $this;
+        $response = $response->withStatus($this->status);
+        $response = $response->withHeader(
+            'Content-Type',
+            $this->contentType . '; charset=' . $this->response->getEncoding(),
+        );
+
+        foreach ($this->response->getHeaders() as $key => $value) {
+            $response = $response->withHeader($key, $value);
+        }
+
+        $content = $this->content ?? '';
+        $response = $response->withHeader('ETag', sha1($content));
+        if ('' !== $content) {
+            $response->getBody()->write($content);
+        }
+
+        return $response;
     }
 
-    /**
-     * @return self
-     */
-    public function render()
+    public function convert(string $from, string $to): self
     {
-        $this->prepare();
-        $this->engineRender($this->getResponse()->isInterrupt());
+        $converted = iconv($from, $to, $this->content ?? '');
+        $this->content = false !== $converted ? $converted : $this->content;
+
         return $this;
     }
 
-    /**
-     * @return mixed
-     */
-    public function getContent()
+    public function getContent(): ?string
     {
         return $this->content;
     }
 
-/** ================ / Public methods ======================================= */
-
-
-
-
-
-
-
-
-
-/** ================ Accessors ============================================== */
-
-    /**
-     * @return mixed
-     */
-    public function getContentType()
+    public function getContentType(): string
     {
         return $this->contentType;
     }
 
-    /**
-     * @param string $type
-     * @return self
-     */
-    public function setContentType($type)
+    public function setContentType(string $type): self
     {
         $this->contentType = $type;
+
         return $this;
     }
 
-    /**
-     * @param Response $response
-     * @return self
-     */
-    public function setResponse(Response $response)
+    public function setResponse(Response $response): self
     {
         $this->response = $response;
+
         return $this;
     }
 
-    /**
-     * @return Response
-     */
-    public function getResponse()
+    public function getResponse(): Response
     {
         return $this->response;
     }
 
-    /**
-     * Récupération d'une option par son nom
-     *
-     * @param string $name
-     * @param mixed $default
-     * @return mixed
-     */
-    public function getOption($name, $default = null)
+    public function getOption(string $name, mixed $default = null): mixed
     {
-        if (!isset($this->options[$name])) {
-            return $default;
-        }
-        return $this->options[$name];
+        return $this->options[$name] ?? $default;
     }
 
-    /**
-     * Définition d'une option pour le moteur de rendu
-     *
-     * @param string $name
-     * @param mixed $value
-     * @return Renderer
-     */
-    public function setOption($name, $value)
+    public function setOption(string $name, mixed $value): self
     {
         $this->options[$name] = $value;
+
         return $this;
     }
 
-/** ============== / Accessors ============================================== */
-
-
-
-
-
-
-
-
-/** ================== Private methods ====================================== */
-
-    /**
-     * @return string
-     */
-    protected function getContentTypeAdapter()
+    private function getContentTypeAdapterName(): string
     {
-        if (isset($this->container['config']['mimetypes'][$this->contentType])) {
-            return $this->container['config']['mimetypes'][$this->contentType] . 'ContentType';
+        $config = $this->container->config();
+
+        /** @var array<string, string> $mimetypes */
+        $mimetypes = $config['mimetypes'];
+
+        if (isset($mimetypes[$this->contentType])) {
+            return $mimetypes[$this->contentType] . 'ContentType';
         }
 
-        return $this->container['config']['mimetypes']['default'] . 'ContentType';
+        return $mimetypes['default'] . 'ContentType';
     }
 
     /**
-     * Préparation du contenu
-     *
-     * @return void
+     * Prepare content from the response using the appropriate content type adapter.
      */
-    protected function prepareContent()
+    public function prepareContent(): void
     {
         $content = $this->response->getContent();
         $this->status = $this->response->getHttpStatus();
 
+        $adapter = $this->container->contentTypeAdapter($this->getContentTypeAdapterName());
+
         if ($this->status >= 200 && $this->status < 400) {
-            $this->content = $this->container[$this->getContentTypeAdapter()]->render(
-                $content,
-                $this,
-                $this->response->isNewLineEOF()
-            );
+            $rendered = $adapter->render($content, $this, $this->response->isNewLineEOF());
         } else {
-            $this->content = $this->container[$this->getContentTypeAdapter()]->renderError($content, $this);
+            $rendered = $adapter->renderError($content, $this);
         }
+        $this->content = $rendered;
     }
-
-    /**
-     * Préparation des headers
-     *
-     * @return void
-     */
-    protected function prepareHeaders()
-    {
-        // format de retour
-        $this->setHeader('Content-Type', $this->contentType . '; charset=' . $this->response->getEncoding());
-
-        foreach ($this->response->headers as $key => $value) {
-            $this->setHeader($key, $value);
-        }
-
-        // caching
-        $this->setHeader('ETag', sha1((string)$this->content));
-    }
-
-/** ================ / Private methods ====================================== */
 }
