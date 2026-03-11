@@ -30,7 +30,6 @@ class Processor
     {
         if (!$returnable->isSuccess()) {
             $codeTranslator = $this->container->config()['codeTranslator'];
-            /** @phpstan-ignore nullCoalesce.expr (key may not exist in the translator map) */
             $httpStatus = $codeTranslator[$returnable->getErrorCode() ?? ''] ?? 400;
 
             return $this->container->response()
@@ -58,7 +57,6 @@ class Processor
         $response = $this->container->response()
             ->setHeaders($metadatas);
 
-        /** @phpstan-ignore method.notFound (isEmpty() is provided by the Base trait, not declared in the Returnable interface) */
         if (!$returnable->isEmpty()) {
             $response->setContent($content);
         } else {
