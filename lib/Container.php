@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Voilab\Restanswer;
 
+use Pimple\Container as PimpleContainer;
 use Voilab\Restanswer\ContentType\Csv;
 use Voilab\Restanswer\ContentType\Json;
 use Voilab\Restanswer\ContentType\Standard;
@@ -11,7 +12,15 @@ use Voilab\Restanswer\ContentType\Tab;
 use Voilab\Restanswer\ContentType\Text;
 use Voilab\Restanswer\Interfaces\ContentType;
 
-class Container extends \Pimple\Container
+/**
+ * @phpstan-type RestConfig array{
+ *     'content-type': string,
+ *     mimetypes: array<string, string>,
+ *     codeTranslator: array<string|int, int>,
+ *     processorMapping: array{propertyArrayAccessCheck?: bool},
+ * }
+ */
+class Container extends PimpleContainer
 {
     /**
      * @param array<string, mixed> $config
@@ -49,11 +58,11 @@ class Container extends \Pimple\Container
     }
 
     /**
-     * @return array<string, mixed>
+     * @return RestConfig
      */
     public function config(): array
     {
-        /** @var array<string, mixed> */
+        /** @var RestConfig */
         return $this['config'];
     }
 
@@ -75,6 +84,9 @@ class Container extends \Pimple\Container
         return $this['processor'];
     }
 
+    /**
+     * @param 'defaultContentType'|'jsonContentType'|'csvContentType'|'tabContentType'|'stringContentType' $name
+     */
     public function contentTypeAdapter(string $name): ContentType
     {
         /** @var ContentType */

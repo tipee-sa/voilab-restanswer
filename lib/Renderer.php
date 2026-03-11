@@ -24,9 +24,7 @@ class Renderer
     public function __construct(
         private readonly Container $container,
     ) {
-        /** @var string $defaultContentType */
-        $defaultContentType = $this->container->config()['content-type'];
-        $this->contentType = $defaultContentType;
+        $this->contentType = $this->container->config()['content-type'];
     }
 
     /**
@@ -117,7 +115,6 @@ class Renderer
     {
         $config = $this->container->config();
 
-        /** @var array<string, string> $mimetypes */
         $mimetypes = $config['mimetypes'];
 
         if (isset($mimetypes[$this->contentType])) {
@@ -135,6 +132,7 @@ class Renderer
         $content = $this->response->getContent();
         $this->status = $this->response->getHttpStatus();
 
+        /** @phpstan-ignore argument.type (adapter name is built from config values at runtime) */
         $adapter = $this->container->contentTypeAdapter($this->getContentTypeAdapterName());
 
         if ($this->status >= 200 && $this->status < 400) {

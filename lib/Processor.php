@@ -29,9 +29,9 @@ class Processor
     public function process(Returnable $returnable, ResponseInterface $response, ?string $format = null): ResponseInterface
     {
         if (!$returnable->isSuccess()) {
-            /** @var array<string|int, int> $codeTranslator */
             $codeTranslator = $this->container->config()['codeTranslator'];
-            $httpStatus = $codeTranslator[$returnable->getErrorCode()] ?? 400;
+            /** @phpstan-ignore nullCoalesce.expr (key may not exist in the translator map) */
+            $httpStatus = $codeTranslator[$returnable->getErrorCode() ?? ''] ?? 400;
 
             return $this->container->response()
                 ->setHttpStatus($httpStatus)
@@ -156,8 +156,7 @@ class Processor
 
     private function isPropertyArrayAccessCheckEnabled(): bool
     {
-        /** @var array{propertyArrayAccessCheck?: bool} $processorMapping */
-        $processorMapping = $this->container->config()['processorMapping'] ?? [];
+        $processorMapping = $this->container->config()['processorMapping'];
 
         return $processorMapping['propertyArrayAccessCheck'] ?? false;
     }

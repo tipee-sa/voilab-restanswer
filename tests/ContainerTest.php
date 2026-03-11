@@ -57,6 +57,7 @@ final class ContainerTest extends TestCase
         $config = $container->config();
 
         self::assertSame(['not_found' => 404], $config['codeTranslator']);
+        /** @phpstan-ignore offsetAccess.notFound (testing that array_merge preserves extra keys) */
         self::assertSame('custom_value', $config['custom_key']);
         self::assertArrayHasKey('content-type', $config);
         self::assertArrayHasKey('mimetypes', $config);
